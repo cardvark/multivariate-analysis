@@ -3,8 +3,18 @@ import numpy as np
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import matplotlib.pyplot as plt
+import re
 
 loanData = pd.read_csv('LoanStats3d.csv', header=1)
+
+def partialCopy(data, colArray):
+    newData = data.copy(deep=True)
+
+    for col in list(newData.columns.values):
+        if col not in colArray:
+            del newData[col]
+
+    return newData
 
 def strCleaner(data, remItem, objType):
     def remFunc(x):
@@ -21,12 +31,83 @@ def strCleaner(data, remItem, objType):
     newArr = map(remFunc,data)
     return newArr
 
+testList = ['5 years',
+ '4 years',
+ '10+ years',
+ 'n/a',
+ '6 years',
+ '9 years',
+ '1 year',
+ '3 years',
+ '2 years',
+ '< 1 year',
+ '7 years',
+ '8 years']
+
+def empLengthCleaner(dataCol):
+    non_decimal = re.compile(r'[^\d.]+')
+
+    def cleanerMapFunc(item):
+        # item = str(item)
+        if item == "n/a":
+            return 0
+        else:
+            return int(non_decimal.sub('', item))
+
+    newList = map(cleanerMapFunc, dataCol)
+
+    return newList
+
 loanData['intRateFloat'] = strCleaner(loanData['int_rate'], '%', 'float')
 
 loanData = loanData[np.isfinite(loanData['annual_inc'])]
 loanData = loanData[np.isfinite(loanData['intRateFloat'])]
+loanData = loanData.dropna(subset=['emp_length'])
 
-# loanData = loanData[loanData.annual_inc <= 3000000]
+loanData['empYears'] = empLengthCleaner(loanData['emp_length'])
+
+# loanData['empYears'] = loanData['empYears'].astype(float)
+
+dfCheck = pd.DataFrame()
+
+wantedCols = [
+    'loan_amnt',
+    # 'funded_amnt',
+    'term',
+    'intRateFloat',
+    'grade',
+    'emp_length',
+    'home_ownership',
+    'annual_inc',
+    'verification_status',
+    'purpose',
+    'title',
+    'installment',
+    'addr_state',
+    # 'dti',
+    'delinq_2yrs',
+#     'mths_since_last_delinq',
+#     'mths_since_last_record',
+#     'open_acc',
+#     'total_acc',
+#     'initial_list_status',
+]
+
+# dfCheck = partialCopy(loanData, wantedCols)
+
+# print dfCheck
+
+# a = pd.scatter_matrix(dfCheck, alpha=0.05, figsize=(14,14), diagonal='hist')
+
+# plt.savefig('scatter_matrix-limited.png')
+# plt.show()
+
+# b = pd.scatter_matrix(loanData, alpha=0.05, figsize=(20,20), diagonal='hist')
+# plt.savefig('scatter-matrix-all.png')
+
+incCap = 2500000
+
+# loanData = loanData[loanData.annual_inc <= incCap]
 
 # loanData['logIncome'] = np.log1p(loanData.annual_inc)
 
@@ -41,10 +122,24 @@ plt.savefig('annual_inc-hist.png')
 loanData.hist(column='intRateFloat')
 plt.savefig('intRate-hist.png')
 
-plt.scatter(loanData['annual_inc'], loanData['intRateFloat'], alpha=0.05)
-plt.axis([0, 2500000, 0, 0.35])
+plt.clf()
 
-income_linspace = np.linspace(0, 2500000, 200)
+print loanData['delinq_2yrs']
+
+plt.scatter(loanData['delinq_2yrs'], loanData['intRateFloat'], alpha=0.05)
+plt.savefig('scatter-delinq-int.png')
+plt.show()
+
+print loanData['empYears']
+
+plt.scatter(loanData['empYears'], loanData['intRateFloat'], alpha=0.1)
+plt.savefig('scatter-years-int.png')
+plt.show()
+
+plt.scatter(loanData['annual_inc'], loanData['intRateFloat'], alpha=0.05)
+plt.axis([0, incCap, 0, 0.35])
+
+income_linspace = np.linspace(0, incCap, 200)
 x = pd.DataFrame({'annual_inc': income_linspace})
 
 result0 = smf.ols(formula='intRateFloat ~ annual_inc', data=loanData).fit()
@@ -69,7 +164,7 @@ res1Rent = result1.params[2]
 res1Inc = result1.params[3]
 
 plt.scatter(loanData['annual_inc'], loanData['intRateFloat'], alpha=0.05)
-plt.axis([0, 2500000, 0, 0.35])
+plt.axis([0, incCap, 0, 0.35])
 
 plt.plot(income_linspace, result1.params[0] + result1.params[3] * income_linspace, 'r') # Mortgage
 plt.plot(income_linspace, res1Int + res1Inc * income_linspace + res1Own, 'g') # Own
@@ -93,7 +188,7 @@ res2OwnInc = result_2.params[4]
 res2RentInc = result_2.params[5]
 
 plt.scatter(loanData['annual_inc'], loanData['intRateFloat'], alpha=0.05)
-plt.axis([0, 2500000, 0, 0.35])
+plt.axis([0, incCap, 0, 0.35])
 
 plt.plot(income_linspace, res2Int + res2Inc * income_linspace, 'r') # Mortgage
 plt.plot(income_linspace, res2Int + res2Inc * income_linspace + res2Own + res2OwnInc * income_linspace, 'g') # Own
