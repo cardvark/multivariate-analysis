@@ -3,7 +3,11 @@ import numpy as np
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import matplotlib.pyplot as plt
+import itertools
 import re
+from sys import argv
+
+runCompare = argv
 
 loanData = pd.read_csv('LoanStats3d.csv', header=1)
 
@@ -31,18 +35,18 @@ def strCleaner(data, remItem, objType):
     newArr = map(remFunc,data)
     return newArr
 
-testList = ['5 years',
- '4 years',
- '10+ years',
- 'n/a',
- '6 years',
- '9 years',
- '1 year',
- '3 years',
- '2 years',
- '< 1 year',
- '7 years',
- '8 years']
+# testList = ['5 years',
+#  '4 years',
+#  '10+ years',
+#  'n/a',
+#  '6 years',
+#  '9 years',
+#  '1 year',
+#  '3 years',
+#  '2 years',
+#  '< 1 year',
+#  '7 years',
+#  '8 years']
 
 def empLengthCleaner(dataCol):
     non_decimal = re.compile(r'[^\d.]+')
@@ -58,6 +62,26 @@ def empLengthCleaner(dataCol):
 
     return newList
 
+def compareAll(dfData):
+    outputList = []
+    headers = ['a', 'b', 'rsquared']
+
+    # for a in dfData.columns.values:
+    #     for b in dfData.columns.values:
+    #         if a == b:
+    #             continue
+
+    #         result = smf.ols(formula='%s ~ %s' % (a, b), data=dfData).fit()
+    #         outputList.append([a, b, result.rsquared])
+
+    for a, b in itertools.combinations(dfData.columns.values, 2):
+        result = smf.ols(formula='%s ~ %s' % (a, b), data=dfData).fit()
+        outputList.append([a, b, result.rsquared])
+
+    df = pd.DataFrame(outputList, columns=headers)
+
+    return df
+
 loanData['intRateFloat'] = strCleaner(loanData['int_rate'], '%', 'float')
 
 loanData = loanData[np.isfinite(loanData['annual_inc'])]
@@ -66,9 +90,15 @@ loanData = loanData.dropna(subset=['emp_length'])
 
 loanData['empYears'] = empLengthCleaner(loanData['emp_length'])
 
+if runCompare = 'compare':
+    numData = loanData.select_dtypes(include=['int64', 'float64'])
+    comparedDF = compareAll(numData)
+    comparedDF.to_csv('comparisonTable.csv', index=False)
+
+
 # loanData['empYears'] = loanData['empYears'].astype(float)
 
-dfCheck = pd.DataFrame()
+# dfCheck = pd.DataFrame()
 
 wantedCols = [
     'loan_amnt',
@@ -124,13 +154,13 @@ plt.savefig('intRate-hist.png')
 
 plt.clf()
 
-print loanData['delinq_2yrs']
+# print loanData['delinq_2yrs']
 
 plt.scatter(loanData['delinq_2yrs'], loanData['intRateFloat'], alpha=0.05)
 plt.savefig('scatter-delinq-int.png')
 plt.show()
 
-print loanData['empYears']
+# print loanData['empYears']
 
 plt.scatter(loanData['empYears'], loanData['intRateFloat'], alpha=0.1)
 plt.savefig('scatter-years-int.png')
@@ -196,3 +226,4 @@ plt.plot(income_linspace, res2Int + res2Inc * income_linspace + res2Rent + res2R
 
 plt.savefig('scatter-line-multi.png')
 plt.show()
+
