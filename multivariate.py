@@ -7,10 +7,12 @@ import itertools
 import re
 from sys import argv
 
+# used below; if 'compare', will run rsquared comparison csv function.
 runCompare = argv
 
 loanData = pd.read_csv('LoanStats3d.csv', header=1)
 
+# takes a list of col names and creates a new DF based on included col names.
 def partialCopy(data, colArray):
     newData = data.copy(deep=True)
 
@@ -20,6 +22,7 @@ def partialCopy(data, colArray):
 
     return newData
 
+# removes single strings and sets to int or float.  good for % or "months", etc.
 def strCleaner(data, remItem, objType):
     def remFunc(x):
         x = str(x)
@@ -35,19 +38,7 @@ def strCleaner(data, remItem, objType):
     newArr = map(remFunc,data)
     return newArr
 
-# testList = ['5 years',
-#  '4 years',
-#  '10+ years',
-#  'n/a',
-#  '6 years',
-#  '9 years',
-#  '1 year',
-#  '3 years',
-#  '2 years',
-#  '< 1 year',
-#  '7 years',
-#  '8 years']
-
+# data specific - changes employment length strings into int.
 def empLengthCleaner(dataCol):
     non_decimal = re.compile(r'[^\d.]+')
 
@@ -62,17 +53,10 @@ def empLengthCleaner(dataCol):
 
     return newList
 
+# compares all cols in the data against each other *once*.
 def compareAll(dfData):
     outputList = []
     headers = ['a', 'b', 'rsquared']
-
-    # for a in dfData.columns.values:
-    #     for b in dfData.columns.values:
-    #         if a == b:
-    #             continue
-
-    #         result = smf.ols(formula='%s ~ %s' % (a, b), data=dfData).fit()
-    #         outputList.append([a, b, result.rsquared])
 
     for a, b in itertools.combinations(dfData.columns.values, 2):
         result = smf.ols(formula='%s ~ %s' % (a, b), data=dfData).fit()
@@ -82,6 +66,30 @@ def compareAll(dfData):
 
     return df
 
+# builds simple dict - key is distinct items in the col, val is i++
+def intDictBuilder(colData, sorted):
+    newList = list(set(colData))
+    newDict = {}
+    counterVar = 0
+
+    if sorted:
+        newList = sorted(newList)
+
+    for i in newList:
+        newDict[i] = counterVar
+        counterVar += 1
+
+    return newDict
+
+# converts categorical data to ascending int; uses intDictbuilder.
+def catToInt(data, colName, newColName, sorted):
+    
+    intDict = intDictBuilder(data[colName], sorted)
+
+    data[newColName] = [intDict[x] for x in data[colName]]
+
+    return data
+
 loanData['intRateFloat'] = strCleaner(loanData['int_rate'], '%', 'float')
 
 loanData = loanData[np.isfinite(loanData['annual_inc'])]
@@ -90,38 +98,27 @@ loanData = loanData.dropna(subset=['emp_length'])
 
 loanData['empYears'] = empLengthCleaner(loanData['emp_length'])
 
+
 if runCompare = 'compare':
     numData = loanData.select_dtypes(include=['int64', 'float64'])
     comparedDF = compareAll(numData)
     comparedDF.to_csv('comparisonTable.csv', index=False)
 
-
-# loanData['empYears'] = loanData['empYears'].astype(float)
-
-# dfCheck = pd.DataFrame()
-
-wantedCols = [
-    'loan_amnt',
-    # 'funded_amnt',
-    'term',
-    'intRateFloat',
-    'grade',
-    'emp_length',
-    'home_ownership',
-    'annual_inc',
-    'verification_status',
-    'purpose',
-    'title',
-    'installment',
-    'addr_state',
-    # 'dti',
-    'delinq_2yrs',
-#     'mths_since_last_delinq',
-#     'mths_since_last_record',
-#     'open_acc',
-#     'total_acc',
-#     'initial_list_status',
-]
+# wantedCols = [
+#     'loan_amnt',
+#     'term',
+#     'intRateFloat',
+#     'grade',
+#     'emp_length',
+#     'home_ownership',
+#     'annual_inc',
+#     'verification_status',
+#     'purpose',
+#     'title',
+#     'installment',
+#     'addr_state',
+#     'delinq_2yrs'
+# ]
 
 # dfCheck = partialCopy(loanData, wantedCols)
 
@@ -139,12 +136,6 @@ incCap = 2500000
 
 # loanData = loanData[loanData.annual_inc <= incCap]
 
-# loanData['logIncome'] = np.log1p(loanData.annual_inc)
-
-# print loanData['int_rate']
-# print loanData['intRateFloat']
-# print loanData['annual_inc']
-
 loanData.hist(bins=1000, column='annual_inc')
 plt.axis([0, 500000, 0, 27500])
 plt.savefig('annual_inc-hist.png')
@@ -154,13 +145,9 @@ plt.savefig('intRate-hist.png')
 
 plt.clf()
 
-# print loanData['delinq_2yrs']
-
 plt.scatter(loanData['delinq_2yrs'], loanData['intRateFloat'], alpha=0.05)
 plt.savefig('scatter-delinq-int.png')
 plt.show()
-
-# print loanData['empYears']
 
 plt.scatter(loanData['empYears'], loanData['intRateFloat'], alpha=0.1)
 plt.savefig('scatter-years-int.png')
@@ -184,10 +171,6 @@ result1 = smf.ols(formula='intRateFloat ~ annual_inc + C(home_ownership)', data=
 print result1.summary()
 print result1.params
 
-# result_3 = smf.ols(formula='intRateFloat ~ 1 + annual_inc + I(annual_inc ** 2.0)', data=loanData).fit()
-# print result_3.summary()
-# print result_3.params
-
 res1Int = result1.params[0]
 res1Own = result1.params[1]
 res1Rent = result1.params[2]
@@ -199,8 +182,6 @@ plt.axis([0, incCap, 0, 0.35])
 plt.plot(income_linspace, result1.params[0] + result1.params[3] * income_linspace, 'r') # Mortgage
 plt.plot(income_linspace, res1Int + res1Inc * income_linspace + res1Own, 'g') # Own
 plt.plot(income_linspace, res1Int + res1Inc * income_linspace + res1Rent, 'b') # Rent
-# plt.plot(income_linspace, result.predict(x), 'r', alpha=0.9)
-# plt.plot(x.annual_inc, result_2.predict(x), 'g')
 
 plt.savefig('scatter-line.png')
 plt.show()
